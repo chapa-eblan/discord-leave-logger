@@ -141,7 +141,7 @@ class TemplateInputView(discord.ui.View):
 
 class LeaveLoggerBot(commands.Bot):
     def __init__(self, intents: discord.Intents):
-        super().__init__(intents=intents)
+        super().__init__(intents=intents, command_prefix=None)
         self.config = load_config()
         self.tree = app_commands.CommandTree(self)
 
