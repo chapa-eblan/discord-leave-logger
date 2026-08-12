@@ -142,10 +142,9 @@ class LeaveLoggerBot(discord.Client):
     def __init__(self, intents: discord.Intents):
         super().__init__(intents=intents)
         self.config = load_config()
-        self.tree: Optional[app_commands.CommandTree] = None
+        self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
-        self.tree = app_commands.CommandTree(self)
         await self.tree.sync()
         print("✅ Slash commands synced.")
 
