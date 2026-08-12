@@ -1,0 +1,11 @@
+{
+    "channels": {
+        "quit_log": null,
+        "ban_log": null
+    },
+    "templates": {
+        "quit": "👋 `{user}` покинул сервер `{guild}` | `{time}`",
+        "ban": "🔨 `{user}` забанен на `{guild}` | `{time}` | Причина: `{reason}`"
+    },
+    "joined_at_enabled": true
+}
