@@ -79,7 +79,7 @@ class ChannelSelectView(discord.ui.View):
             placeholder="Выбери текстовый канал...",
             min_values=1,
             max_values=1,
-            options=[discord.ui.SelectOption(label=ch.name, value=str(ch.id)) for ch in guild.text_channels],
+            options=[{"label": ch.name, "value": str(ch.id)} for ch in guild.text_channels],
         )
         self.add_item(self.select)
 
