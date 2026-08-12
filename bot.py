@@ -328,16 +328,14 @@ def main():
         quit_ch = f"<#{channels['quit_log']}>" if channels.get("quit_log") else "Не настроен"
         ban_ch = f"<#{channels['ban_log']}>" if channels.get("ban_log") else "Не настроен"
 
-        msg = (
-            "⚙️ **Настройки бота LeaveLogger**\n\n"
-            f"📋 **Канал логов ухода:** {quit_ch}\n"
-            f"📋 **Канал логов банов:** {ban_ch}\n\n"
-            f"**Шаблон ухода:**\n```
-{templates.get('quit', 'default')}```\n\n"
-            f"**Шаблон бана:**\n```
-{templates.get('ban', 'default')}```\n\n"
-            "Используй `/setup` чтобы изменить настройки."
-        )
+        quit_tmpl = templates.get("quit", "default")
+        ban_tmpl = templates.get("ban", "default")
+        msg = "⚙️ **Настройки бота LeaveLogger**\n\n"
+        msg += f"📋 **Канал логов ухода:** {quit_ch}\n"
+        msg += f"📋 **Канал логов банов:** {ban_ch}\n\n"
+        msg += f"**Шаблон ухода:**\n```\n{quit_tmpl}```\n\n"
+        msg += f"**Шаблон бана:**\n```\n{ban_tmpl}```\n\n"
+        msg += "Используй `/setup` чтобы изменить настройки."
         await interaction.followup.send(msg, ephemeral=True)
 
     @bot.tree.command(name="ping", description="Проверить работу бота")
