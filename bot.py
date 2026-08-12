@@ -145,11 +145,16 @@ class LeaveLoggerBot(commands.Bot):
         self.config = load_config()
 
     async def on_ready(self):
-        await self.tree.sync()
-        print(f"✅ Logged in as {self.user} (ID: {self.user.id})")
-        print(f"   Serving {len(self.guilds)} server(s)")
-        print("✅ Slash commands synced.")
+        print("🔔 on_ready called!", flush=True)
+        print(f"✅ Logged in as {self.user} (ID: {self.user.id})", flush=True)
+        print(f"   Serving {len(self.guilds)} server(s)", flush=True)
+        try:
+            await self.tree.sync()
+            print("✅ Slash commands synced.", flush=True)
+        except Exception as e:
+            print(f"❌ Sync error: {e}", flush=True)
         self.config = load_config()
+        print("🤖 Bot ready!", flush=True)
 
 
     async def on_guild_member_remove(self, member: discord.Member):
@@ -362,7 +367,7 @@ def main():
     async def ping_cmd(interaction: discord.Interaction):
         await interaction.response.send_message("🏓 Pong!", ephemeral=True)
 
-    print("🤖 Starting LeaveLogger Bot...")
+    print("🤖 Starting LeaveLogger Bot...", flush=True)
     bot.run(token)
 
 
