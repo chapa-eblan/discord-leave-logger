@@ -79,8 +79,9 @@ class ChannelSelectView(discord.ui.View):
             placeholder="Выбери текстовый канал...",
             min_values=1,
             max_values=1,
-            options=[{"label": ch.name, "value": str(ch.id)} for ch in guild.text_channels],
         )
+        for ch in guild.text_channels:
+            self.select.add_option(label=ch.name, value=str(ch.id))
         self.add_item(self.select)
 
     @discord.ui.select()
@@ -126,7 +127,7 @@ class TemplateInputView(discord.ui.View):
 
 class LeaveLoggerBot(commands.Bot):
     def __init__(self, intents: discord.Intents):
-        super().__init__(intents=intents, command_prefix=None)
+        super().__init__(intents=intents, command_prefix='')
         self.config = load_config()
         self._banned_user_ids = set(self.config.get("banned_members_set", []))
 
