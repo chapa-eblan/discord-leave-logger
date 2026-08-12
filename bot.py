@@ -143,16 +143,14 @@ class LeaveLoggerBot(commands.Bot):
     def __init__(self, intents: discord.Intents):
         super().__init__(intents=intents, command_prefix=None)
         self.config = load_config()
-        self.tree = app_commands.CommandTree(self)
-
-    async def setup_hook(self):
-        await self.tree.sync()
-        print("✅ Slash commands synced.")
 
     async def on_ready(self):
+        await self.tree.sync()
         print(f"✅ Logged in as {self.user} (ID: {self.user.id})")
         print(f"   Serving {len(self.guilds)} server(s)")
+        print("✅ Slash commands synced.")
         self.config = load_config()
+
 
     async def on_guild_member_remove(self, member: discord.Member):
         channel_id = self.config.get("channels", {}).get("quit_log")
