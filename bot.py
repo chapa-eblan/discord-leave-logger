@@ -74,7 +74,7 @@ def render_template(template: str, **kwargs) -> str:
 class ChannelSelectView(discord.ui.View):
     def __init__(self, guild: discord.Guild):
         super().__init__(timeout=180)
-        self.result: Optional[int] = None
+        self.result = None
         self.select = discord.ui.Select(
             placeholder="Выбери текстовый канал...",
             min_values=1,
@@ -96,7 +96,7 @@ class ChannelSelectView(discord.ui.View):
 class TemplateInputView(discord.ui.View):
     def __init__(self, default_template: str):
         super().__init__(timeout=180)
-        self.result: Optional[str] = default_template
+        self.result = default_template
         self.default_template = default_template
         self.text_input = discord.ui.TextInput(
             label="Шаблон сообщения",
@@ -259,7 +259,6 @@ def main():
             await interaction.followup.send("Команда доступна только на сервере.", ephemeral=True)
             return
 
-        # Step 1: Quit log channel
         quit_view = ChannelSelectView(guild)
         await interaction.followup.send(
             "📋 Выбери канал для логов **ухода участников**:",
@@ -271,7 +270,6 @@ def main():
             await interaction.followup.send("⏰ Время вышло. Запусти `/setup` снова.", ephemeral=True)
             return
 
-        # Step 2: Ban log channel
         ban_view = ChannelSelectView(guild)
         await interaction.followup.send(
             "📋 Выбери канал для логов **банов**:",
@@ -283,44 +281,25 @@ def main():
             await interaction.followup.send("⏰ Время вышло. Запусти `/setup` снова.", ephemeral=True)
             return
 
-        # Step 3: Quit template
         cfg = load_config()
         quit_default = cfg.get("templates", {}).get("quit", "")
         quit_view_input = TemplateInputView(quit_default)
-        quit_msg = (
-            "✏️ **Шаблон сообщения об уходе**
-
-"
-            "Переменные: `{user}`, `{user_id}`, `{guild}`, `{time}`, `{duration}`
-
-"
-            "Нажми Сохранить — если всё ок."
-        )
+        quit_msg = "✏️ **Шаблон сообщения об уходе**\n\nПеременные: `{user}`, `{user_id}`, `{guild}`, `{time}`, `{duration}`\n\nНажми Сохранить — если всё ок."
         await interaction.followup.send(quit_msg, view=quit_view_input, ephemeral=True)
         quit_template = await quit_view_input.wait()
         if quit_template is None:
             await interaction.followup.send("⏰ Время вышло. Запусти `/setup` снова.", ephemeral=True)
             return
 
-        # Step 4: Ban template
         ban_default = cfg.get("templates", {}).get("ban", "")
         ban_view_input = TemplateInputView(ban_default)
-        ban_msg = (
-            "✏️ **Шаблон сообщения о бане**
-
-"
-            "Переменные: `{user}`, `{user_id}`, `{guild}`, `{time}`, `{reason}`
-
-"
-            "Нажми Сохранить — если всё ок."
-        )
+        ban_msg = "✏️ **Шаблон сообщения о бане**\n\nПеременные: `{user}`, `{user_id}`, `{guild}`, `{time}`, `{reason}`\n\nНажми Сохранить — если всё ок."
         await interaction.followup.send(ban_msg, view=ban_view_input, ephemeral=True)
         ban_template = await ban_view_input.wait()
         if ban_template is None:
             await interaction.followup.send("⏰ Время вышло. Запусти `/setup` снова.", ephemeral=True)
             return
 
-        # Save
         new_config = load_config()
         new_config["channels"]["quit_log"] = quit_result
         new_config["channels"]["ban_log"] = ban_result
@@ -329,18 +308,7 @@ def main():
         save_config(new_config)
         bot.config = new_config
 
-        result_msg = (
-            "✅ **Настройки сохранены!**
-
-"
-            f"📋 Канал логов ухода: <#{quit_result}>
-"
-            f"📋 Канал логов банов: <#{ban_result}>
-"
-            f"✏️ Шаблон ухода: `{quit_template}`
-"
-            f"✏️ Шаблон бана: `{ban_template}`"
-        )
+        result_msg = f"✅ **Настройки сохранены!**\n\n📋 Канал логов ухода: <#{quit_result}>\n📋 Канал логов банов: <#{ban_result}>\n✏️ Шаблон ухода: `{quit_template}`\n✏️ Шаблон бана: `{ban_template}`"
         await interaction.followup.send(result_msg, ephemeral=True)
 
     @bot.tree.command(name="config", description="Посмотреть текущие настройки")
@@ -354,28 +322,10 @@ def main():
 
         quit_ch = f"<#{channels['quit_log']}>" if channels.get("quit_log") else "Не настроен"
         ban_ch = f"<#{channels['ban_log']}>" if channels.get("ban_log") else "Не настроен"
-
         quit_tmpl = templates.get("quit", "default")
         ban_tmpl = templates.get("ban", "default")
-        msg = "⚙️ **Настройки бота LeaveLogger**
 
-"
-        msg += f"📋 **Канал логов ухода:** {quit_ch}
-"
-        msg += f"📋 **Канал логов банов:** {ban_ch}
-
-"
-        msg += f"**Шаблон ухода:**
-```
-{quit_tmpl}```
-
-"
-        msg += f"**Шаблон бана:**
-```
-{ban_tmpl}```
-
-"
-        msg += "Используй `/setup` чтобы изменить настройки."
+        msg = f"⚙️ **Настройки бота LeaveLogger**\n\n📋 **Канал логов ухода:** {quit_ch}\n📋 **Канал логов банов:** {ban_ch}\n\n**Шаблон ухода:**\n```\n{quit_tmpl}```\n\n**Шаблон бана:**\n```\n{ban_tmpl}```\n\nИспользуй `/setup` чтобы изменить настройки."
         await interaction.followup.send(msg, ephemeral=True)
 
     @bot.tree.command(name="ping", description="Проверить работу бота")
