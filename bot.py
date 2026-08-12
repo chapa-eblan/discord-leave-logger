@@ -1,11 +1,7 @@
 """
 Discord Leave Logger Bot
-
-Logs when members leave or get banned from the server.
-Configurable via slash commands.
 """
 
-import asyncio
 import json
 import os
 import sys
@@ -13,8 +9,8 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import discord
-from discord.ext import commands
 from discord import app_commands
+from discord.ext import commands
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
@@ -47,10 +43,6 @@ def save_config(config: dict):
         json.dump(config, f, indent=4, ensure_ascii=False)
 
 
-def get_user_display(member_or_user) -> str:
-    return str(member_or_user)
-
-
 def format_duration(joined_at: datetime, left_at: datetime) -> str:
     delta = left_at - joined_at
     days = delta.days
@@ -69,39 +61,28 @@ def format_duration(joined_at: datetime, left_at: datetime) -> str:
 def render_template(template: str, **kwargs) -> str:
     now = datetime.now(timezone.utc)
     time_str = now.strftime("%d.%m.%Y %H:%M")
-
-    context = {
-        "time": time_str,
-        "reason": kwargs.get("reason") or "Не указана",
-    }
+    context = {"time": time_str, "reason": kwargs.get("reason") or "Не указана"}
     context.update(kwargs)
-
     return template.format(**context)
 
 
 class ChannelSelectView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=120)
+    def __init__(self, guild: discord.Guild, result_attr: str):
+        super().__init__(timeout=180)
         self.result: Optional[int] = None
-
-    def populate_options(self, guild: discord.Guild):
-        self.clear_items()
-        select = discord.ui.Select(
+        self.select = discord.ui.Select(
             placeholder="Выбери текстовый канал...",
             min_values=1,
             max_values=1,
+            options=[discord.ui.SelectOption(label=ch.name, value=str(ch.id)) for ch in guild.text_channels],
         )
+        self.add_item(self.select)
 
-        for ch in guild.text_channels:
-            select.add_option(label=ch.name, value=str(ch.id))
-
-        select.callback = self._select_callback
-        self.add_item(select)
-
-    async def _select_callback(self, interaction: discord.Interaction):
-        self.result = int(interaction.data["values"][0])
+    @discord.ui.select()
+    async def on_select(self, interaction: discord.Interaction, select: discord.ui.Select):
+        self.result = int(select.values[0])
         self.stop()
-        await interaction.response.defer()
+        await interaction.response.send_message(f"✅ Выбран канал <#{self.result}>", ephemeral=True)
 
     async def on_timeout(self):
         self.stop()
@@ -109,10 +90,9 @@ class ChannelSelectView(discord.ui.View):
 
 class TemplateInputView(discord.ui.View):
     def __init__(self, default_template: str):
-        super().__init__(timeout=120)
+        super().__init__(timeout=180)
         self.result: Optional[str] = default_template
         self.default_template = default_template
-
         self.text_input = discord.ui.TextInput(
             label="Шаблон сообщения",
             placeholder="Введи или оставь текущий...",
@@ -126,13 +106,13 @@ class TemplateInputView(discord.ui.View):
     async def save_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.result = self.text_input.value
         self.stop()
-        await interaction.response.defer()
+        await interaction.response.send_message("✅ Шаблон сохранён", ephemeral=True)
 
     @discord.ui.button(label="Отмена", style=discord.ButtonStyle.secondary)
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.result = self.default_template
         self.stop()
-        await interaction.response.defer()
+        await interaction.response.send_message("🔄 Отмена — старый шаблон оставлен", ephemeral=True)
 
     async def on_timeout(self):
         self.result = None
@@ -145,17 +125,11 @@ class LeaveLoggerBot(commands.Bot):
         self.config = load_config()
 
     async def on_ready(self):
-        print("🔔 on_ready called!", flush=True)
         print(f"✅ Logged in as {self.user} (ID: {self.user.id})", flush=True)
         print(f"   Serving {len(self.guilds)} server(s)", flush=True)
-        try:
-            await self.tree.sync()
-            print("✅ Slash commands synced.", flush=True)
-        except Exception as e:
-            print(f"❌ Sync error: {e}", flush=True)
+        await self.tree.sync()
+        print("✅ Slash commands synced.", flush=True)
         self.config = load_config()
-        print("🤖 Bot ready!", flush=True)
-
 
     async def on_guild_member_remove(self, member: discord.Member):
         channel_id = self.config.get("channels", {}).get("quit_log")
@@ -167,14 +141,13 @@ class LeaveLoggerBot(commands.Bot):
             return
 
         template = self.config.get("templates", {}).get("quit")
-
         duration_str = None
         if self.config.get("joined_at_enabled") and member.joined_at:
             duration_str = format_duration(member.joined_at, datetime.now(timezone.utc))
 
         rendered = render_template(
             template,
-            user=get_user_display(member),
+            user=str(member),
             user_id=member.id,
             guild=member.guild.name,
             duration=duration_str or "Неизвестно",
@@ -193,13 +166,13 @@ class LeaveLoggerBot(commands.Bot):
         try:
             if member.avatar:
                 embed.set_thumbnail(url=member.avatar.url)
-        except:
+        except Exception:
             pass
 
         try:
             await channel.send(embed=embed)
         except discord.HTTPException as e:
-            print(f"❌ Failed to send quit log: {e}")
+            print(f"❌ Failed to send quit log: {e}", flush=True)
 
     async def on_member_ban(self, guild: discord.Guild, user: discord.User):
         channel_id = self.config.get("channels", {}).get("ban_log")
@@ -211,7 +184,6 @@ class LeaveLoggerBot(commands.Bot):
             return
 
         template = self.config.get("templates", {}).get("ban")
-
         reason = "Не указана"
         try:
             entries = await guild.audit_logs(action=discord.AuditLogAction.ban, limit=5).flatten()
@@ -219,12 +191,12 @@ class LeaveLoggerBot(commands.Bot):
                 if entry.target.id == user.id:
                     reason = entry.reason or "Не указана"
                     break
-        except:
+        except Exception:
             pass
 
         rendered = render_template(
             template,
-            user=get_user_display(user),
+            user=str(user),
             user_id=user.id,
             guild=guild.name,
             reason=reason,
@@ -242,23 +214,19 @@ class LeaveLoggerBot(commands.Bot):
         try:
             if user.avatar:
                 embed.set_thumbnail(url=user.avatar.url)
-        except:
+        except Exception:
             pass
 
         try:
             await channel.send(embed=embed)
         except discord.HTTPException as e:
-            print(f"❌ Failed to send ban log: {e}")
+            print(f"❌ Failed to send ban log: {e}", flush=True)
 
 
 def main():
     token = os.environ.get("DISCORD_BOT_TOKEN")
     if not token:
-        print("❌ Ошибка: укажи токен в переменной DISCORD_BOT_TOKEN")
-        print("   Например: export DISCORD_BOT_TOKEN=твой-токен")
-        sys.exit(1)
-    if not token:
-        print("❌ Ошибка: токен не найден")
+        print("❌ Ошибка: укажи токен в переменной DISCORD_BOT_TOKEN", flush=True)
         sys.exit(1)
 
     intents = discord.Intents.default()
@@ -266,8 +234,6 @@ def main():
     intents.bans = True
 
     bot = LeaveLoggerBot(intents=intents)
-
-    # ===== Slash Commands =====
 
     @bot.tree.command(name="setup", description="Настроить каналы и сообщения бота")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -280,54 +246,59 @@ def main():
             return
 
         # Step 1: Quit log channel
-        quit_view = ChannelSelectView()
-        quit_view.populate_options(guild)
+        quit_view = ChannelSelectView(guild, "quit_log")
         await interaction.followup.send(
-            "Выбери канал для логов ухода участников:",
+            "📋 Выбери канал для логов **ухода участников**:",
             view=quit_view,
             ephemeral=True,
         )
         quit_result = await quit_view.wait()
         if not quit_result:
-            await interaction.followup.send("⏰ Время вышло.", ephemeral=True)
+            await interaction.followup.send("⏰ Время вышло. Запусти `/setup` снова.", ephemeral=True)
             return
 
         # Step 2: Ban log channel
-        ban_view = ChannelSelectView()
-        ban_view.populate_options(guild)
-        await interaction.edit_original_response(
-            "Выбери канал для логов банов:",
+        ban_view = ChannelSelectView(guild, "ban_log")
+        await interaction.followup.send(
+            "📋 Выбери канал для логов **банов**:",
             view=ban_view,
+            ephemeral=True,
         )
         ban_result = await ban_view.wait()
         if not ban_result:
-            await interaction.followup.send("⏰ Время вышло.", ephemeral=True)
+            await interaction.followup.send("⏰ Время вышло. Запусти `/setup` снова.", ephemeral=True)
             return
 
         # Step 3: Quit template
         cfg = load_config()
         quit_default = cfg.get("templates", {}).get("quit", "")
         quit_view_input = TemplateInputView(quit_default)
-        quit_msg = "Введи шаблон для сообщения об уходе.\n"
-        quit_msg += "Переменные: `{user}`, `{user_id}`, `{guild}`, `{time}`, `{duration}`"
-        await interaction.edit_original_response(quit_msg, view=quit_view_input)
+        quit_msg = (
+            "✏️ **Шаблон сообщения об уходе**\n\n"
+            "Переменные: `{user}`, `{user_id}`, `{guild}`, `{time}`, `{duration}`\n\n"
+            "Нажми Сохранить — если всё ок."
+        )
+        await interaction.followup.send(quit_msg, view=quit_view_input, ephemeral=True)
         quit_template = await quit_view_input.wait()
         if quit_template is None:
-            await interaction.followup.send("⏰ Время вышло.", ephemeral=True)
+            await interaction.followup.send("⏰ Время вышло. Запусти `/setup` снова.", ephemeral=True)
             return
 
         # Step 4: Ban template
         ban_default = cfg.get("templates", {}).get("ban", "")
         ban_view_input = TemplateInputView(ban_default)
-        ban_msg = "Введи шаблон для сообщения о бане.\n"
-        ban_msg += "Переменные: `{user}`, `{user_id}`, `{guild}`, `{time}`, `{reason}`"
-        await interaction.edit_original_response(ban_msg, view=ban_view_input)
+        ban_msg = (
+            "✏️ **Шаблон сообщения о бане**\n\n"
+            "Переменные: `{user}`, `{user_id}`, `{guild}`, `{time}`, `{reason}`\n\n"
+            "Нажми Сохранить — если всё ок."
+        )
+        await interaction.followup.send(ban_msg, view=ban_view_input, ephemeral=True)
         ban_template = await ban_view_input.wait()
         if ban_template is None:
-            await interaction.followup.send("⏰ Время вышло.", ephemeral=True)
+            await interaction.followup.send("⏰ Время вышло. Запусти `/setup` снова.", ephemeral=True)
             return
 
-        # Save config
+        # Save
         new_config = load_config()
         new_config["channels"]["quit_log"] = quit_result
         new_config["channels"]["ban_log"] = ban_result
@@ -336,12 +307,14 @@ def main():
         save_config(new_config)
         bot.config = new_config
 
-        result_msg = "✅ **Настройки сохранены!**\n\n"
-        result_msg += f"Канал логов ухода: <#{quit_result}>\n"
-        result_msg += f"Канал логов банов: <#{ban_result}>\n"
-        result_msg += f"Шаблон ухода: `{quit_template}`\n"
-        result_msg += f"Шаблон бана: `{ban_template}`"
-        await interaction.edit_original_response(result_msg, view=None)
+        result_msg = (
+            "✅ **Настройки сохранены!**\n\n"
+            f"📋 Канал логов ухода: <#{quit_result}>\n"
+            f"📋 Канал логов банов: <#{ban_result}>\n"
+            f"✏️ Шаблон ухода: `{quit_template}`\n"
+            f"✏️ Шаблон бана: `{ban_template}`"
+        )
+        await interaction.followup.send(result_msg, ephemeral=True)
 
     @bot.tree.command(name="config", description="Посмотреть текущие настройки")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -355,12 +328,16 @@ def main():
         quit_ch = f"<#{channels['quit_log']}>" if channels.get("quit_log") else "Не настроен"
         ban_ch = f"<#{channels['ban_log']}>" if channels.get("ban_log") else "Не настроен"
 
-        msg = "⚙️ **Настройки бота LeaveLogger**\n\n"
-        msg += f"**Канал логов ухода:** {quit_ch}\n"
-        msg += f"**Канал логов банов:** {ban_ch}\n\n"
-        msg += f"**Шаблон ухода:**\n```\n{templates.get('quit', 'default')}```\n\n"
-        msg += f"**Шаблон бана:**\n```\n{templates.get('ban', 'default')}```\n\n"
-        msg += "Используй `/setup` чтобы изменить настройки."
+        msg = (
+            "⚙️ **Настройки бота LeaveLogger**\n\n"
+            f"📋 **Канал логов ухода:** {quit_ch}\n"
+            f"📋 **Канал логов банов:** {ban_ch}\n\n"
+            f"**Шаблон ухода:**\n```
+{templates.get('quit', 'default')}```\n\n"
+            f"**Шаблон бана:**\n```
+{templates.get('ban', 'default')}```\n\n"
+            "Используй `/setup` чтобы изменить настройки."
+        )
         await interaction.followup.send(msg, ephemeral=True)
 
     @bot.tree.command(name="ping", description="Проверить работу бота")
