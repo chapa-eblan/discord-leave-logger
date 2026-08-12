@@ -138,7 +138,7 @@ class TemplateInputView(discord.ui.View):
         self.stop()
 
 
-class LeaveLoggerBot(discord.Client):
+class LeaveLoggerBot(discord.Bot):
     def __init__(self, intents: discord.Intents):
         super().__init__(intents=intents)
         self.config = load_config()
