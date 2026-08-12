@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import discord
+from discord.ext import commands
 from discord import app_commands
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
@@ -138,7 +139,7 @@ class TemplateInputView(discord.ui.View):
         self.stop()
 
 
-class LeaveLoggerBot(discord.Bot):
+class LeaveLoggerBot(commands.Bot):
     def __init__(self, intents: discord.Intents):
         super().__init__(intents=intents)
         self.config = load_config()
